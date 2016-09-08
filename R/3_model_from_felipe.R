@@ -1,6 +1,6 @@
 set.seed(1234)
 
-data <- read.csv("C:/Users/sky_x/Desktop/ANZ Option Model/Model from Felipe/AUD DATA.csv", na.strings=c(".", "NA", "", "?"), strip.white=TRUE, encoding="UTF-8")
+data <- read.csv("data/AUD DATA.csv", na.strings=c(".", "NA", "", "?"), strip.white=TRUE, encoding="UTF-8")
 
 idx <- sample(1:nrow(data), 0.75*nrow(data))
 train <- data[idx, ]
