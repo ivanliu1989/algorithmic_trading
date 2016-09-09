@@ -53,6 +53,7 @@ direction <- 2 # column number of direction variable
 features <- c(3,4,5,8,9,10) #feature columns
 returns <- 1 # returns column
 windows <- c(15, 20, 25, 30, 40, 50, 75, 100, 125, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600)
+windows <- c(15, 30)
 
 modellist.lr <- list()
 PFTrain <- vector()
