@@ -26,3 +26,8 @@ chart.TimeSeries(Pairs, ylog=TRUE,cex.legend=1.25,
 chart.Correlation(Pairs, ylog=TRUE,cex.legend=1.25,
                   colorset=c("cadetblue","darkolivegreen3"))
 # Residuals of Linear Regression
+fit <- lm(EWC~EWA + 1)
+summary(fit)
+hedgeRatio <- fit$coefficients[2]
+resi <- EWC-hedgeRatio*EWA
+chart.TimeSeries(resi)
