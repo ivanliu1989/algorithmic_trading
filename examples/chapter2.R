@@ -25,13 +25,14 @@ ewcAdj=unclass(EWC$EWC.Adjusted)
 
 ## EWC is dependent here 
 reg=lm(ewcAdj~ewaAdj+0)
-
 ## And now lets use adf test on spread (which is actually residuals of regression above step)
 adfTest(reg$residuals, type="nc")
+summary(ur.df(ewaAdj, type = "drift", lags = 1))
 
 ## EWA is dependent here this time
 reg=lm (ewaAdj~ewcAdj+0)
 adfTest(reg$residuals, type="nc") 
+summary(ur.df(ewcAdj, type = "drift", lags = 1))
 
 ### Main function
 cointegrationTestLM_ADF <-function(A, B, startDate) {
@@ -103,6 +104,9 @@ HurstK(ret)
 ret <- ROC(AUDUSD, n = 1,type = "discrete", na.pad = F)
 hurstKmonthly <- apply.rolling(ret, FUN="HurstK", width = 12)
 
+library(pracma)
+hurst <- hurstexp(log(AUDUSD)) # returns a list of various Hurst calculations
+
 
 # 4. Variance Ratio Test --------------------------------------------------
 N <- 12
@@ -114,15 +118,15 @@ Auto.VR(AUDUSD)
 
 
 # 5. Half-Life for Mean Reversion -----------------------------------------
-ylag <- lag(AUDUSD, 1)
-deltaY <- diff(AUDUSD, 1)
-ylag <- ylag[-1]
-deltaY <- deltaY[-1]
-reg <- lm(deltaY ~ ylag + 1)
+ylag <- lag(audnzd, -1)
+deltaY <- diff(audnzd, 1)
+# ylag <- ylag[-1]
+# deltaY <- deltaY[-1]
+reg <- lm(deltaY ~ ylag)
 summary(reg)
-plot(reg)
+# plot(reg)
 halflife <- -log(2) / reg$coefficients[2]
-
+halflife
 
 # 6. Backtesting a Linear Mean-Reverting Trading Strategy -----------------
 y <- AUDUSD
