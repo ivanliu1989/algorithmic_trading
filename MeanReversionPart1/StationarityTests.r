@@ -47,6 +47,6 @@ half.life <- -log(2)/lambda
 
 # STL fit
 audcadMon <- to.monthly(audcad)
-x = ts(audcadMon$audcad.Close,start = 1, end = nrow(audcadMon), frequency = 12)
+x = ts(audcadMon$audcad.Close,start = c(2008, 1), end = c(2015, 7), frequency = 12)
 fit <- stl(x, s.window = "periodic", t.window = 12, robust = T)
 plot(fit)
