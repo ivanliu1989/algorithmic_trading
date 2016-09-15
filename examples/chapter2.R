@@ -128,8 +128,9 @@ summary(reg)
 halflife <- -log(2) / reg$coefficients[2]
 halflife
 
+
 # 6. Backtesting a Linear Mean-Reverting Trading Strategy -----------------
-y <- AUDUSD
+y <- audnzd
 # setting lookback to the halflife found above
 lookback=round(halflife); 
 #capital in number of shares invested in USDCAD. movingAvg and movingStd are functions from epchan.com/book2

@@ -1,90 +1,70 @@
-rm(list=ls());gc()
 library(quantmod)
-library(TTR)
-library(data.table)
-library(PearsonDS)
-library(PerformanceAnalytics)
-library(fUnitRoots)
-library(FGN)
 
-getSymbols("EWA")
-getSymbols("EWC")
-getSymbols("EWP")
-plot(EWA)
-plot(EWC)
 AUDUSD <- read.csv("Mean-reversion-2/AUDUSD.csv")
 NZDUSD <- read.csv("Mean-reversion-2/NZDUSD.csv")
 
-# 1. CADF Test for Cointegration ------------------------------------------
-EWA <-EWA$EWA.Adjusted
-index(EWA) <- as.Date(index(EWA))
-EWC <-EWC$EWC.Adjusted
-index(EWC) <- as.Date(index(EWC))
-Pairs <- merge(EWA, EWC)
-colnames(Pairs) <- c("EWA", "EWC")
-# Time-series
-chart.TimeSeries(Pairs, ylog=TRUE,cex.legend=1.25,
-                          colorset=c("cadetblue","darkolivegreen3"))
-# Correlation
-chart.Correlation(Pairs, ylog=TRUE,cex.legend=1.25,
-                  colorset=c("cadetblue","darkolivegreen3"))
-# Residuals of ordinary least squares regression
-fit <- lm(EWC~EWA + 1)
-summary(fit)
-hedgeRatio <- fit$coefficients[2]
-resi <- EWC-hedgeRatio*EWA
-chart.TimeSeries(resi)
+AUDUSD <- xts(AUDUSD[,-1], as.Date(AUDUSD[,1], format="%d/%m/%Y"), src="csv", dateFormat = 'Date')
+colnames(AUDUSD) <- paste(toupper(gsub("\\^", "", "AUDUSD"  )), 
+                          c("Open", "High", "Low", "Close", "Volume", "Adjusted"), 
+                          sep = ".")
+NZDUSD <- xts(NZDUSD[,-1], as.Date(NZDUSD[,1], format="%d/%m/%Y"), src="csv", dateFormat = 'Date')
+colnames(NZDUSD) <- paste(toupper(gsub("\\^", "", "NZDUSD"  )), 
+                          c("Open", "High", "Low", "Close", "Volume", "Adjusted"), 
+                          sep = ".")
+
+closes <- merge.xts( AUDUSD[, 'AUDUSD.Close'], NZDUSD[, 'NZDUSD.Close'])
+closes_df <- data.frame(closes$AUDUSD.Close, closes$NZDUSD.Close)
+
+plot.zoo(closes, plot.type = 'single', col = c('red', 'blue'))
+legend("bottomright", colnames(closes), lty = 1, col = c('red', 'blue'))
+
+plot(closes_df$AUDUSD.Close, closes_df$NZDUSD.Close, col = 'navyblue')
+lines(lowess(closes_df$AUDUSD.Close, closes_df$NZDUSD.Close), col = 'deeppink2')
+
+## ordinary least squares regression
+m <- lm(AUDUSD.Close ~ NZDUSD.Close, data = closes)
+beta <- coef(m)[2]
+
+resid <- closes$AUDUSD.Close - beta * closes$NZDUSD.Close
+colnames(resid) <- "residual"
+plot.zoo(resid, col = 'navyblue', xlab = 'Date', ylab = 'residual')
+
 ## test stationarity of the spread
 library(urca)
-summary(ur.df(resi, type = "drift", lags = 1))
+summary(ur.df(resid, type = "drift", lags = 1))
 
 ## total least squares regression
-r <- princomp(~ EWC + EWA)
+r <- princomp(~ AUDUSD.Close + NZDUSD.Close, data=closes)
 beta_TLS <- r$loadings[1,1] / r$loadings[2,1] # I think we also need a non-zero intercept in both cases
 
-resid_TLS <- EWC - beta_TLS * EWA
+resid_TLS <- closes$AUDUSD.Close - beta_TLS * closes$NZDUSD.Close
 colnames(resid_TLS) <- "residual"
-chart.TimeSeries(resid_TLS)
+plot.zoo(resid_TLS, col = 'blue')
 
 summary(ur.df(resid_TLS, type = "drift", lags = 1))
 
-
-# 2. Johansen test --------------------------------------------------------
-jo_t <- ca.jo(cbind(EWC, EWA), type="trace", ecdet="none", K=2) #test trace statistics
-jo_e <- ca.jo(cbind(EWC, EWA), type="eigen", ecdet="none", K=2) # eigenvalue test statistics
-print(summary(jo_e))
+## johansen test
+jo_t <- ca.jo(cbind(AUDUSD$AUDUSD.Close, NZDUSD$NZDUSD.Close), type="trace", ecdet="none", K=2) #test trace statistics
+jo_e <- ca.jo(cbind(AUDUSD$AUDUSD.Close, NZDUSD$NZDUSD.Close), type="eigen", ecdet="none", K=2) # eigenvalue test statistics
+print(summary(jo_t))
 
 ## construct portfolio
-spread <- EWC - 0.9074647 * EWA
-chart.TimeSeries(spread)
+spread <- closes$AUDUSD.Close - 3.41 * closes$NZDUSD.Close
+plot.zoo(spread,  col = 'navyblue', xlab = 'Date', ylab = 'Spread from johansen eigenvector')
 
 ## calculate half life of mean reversion
 y <- spread
 y.lag <- lag(y, -1)
 delta.y <- diff(y)
+
 df <- cbind(y, y.lag, delta.y)
 df <- df[-1 ,] #remove first row with NAs
+
 regress.results <- lm(delta.y ~ y.lag, data = df)
+
 lambda <- summary(regress.results)$coefficients[2]
 half.life <- log(2)/lambda
-# backtest
-# setting lookback to the halflife found above
-lookback=round(half.life); 
-#capital in number of shares invested in USDCAD. movingAvg and movingStd are functions from epchan.com/book2
-mktVal=-(y-SMA(y, lookback))/runSD(y, lookback);
-# daily P&L of the strategy 
-pnl=lag(mktVal, 1)*(y-lag(y, 1))/lag(y, 1); 
-pnl[is.na(pnl)]=0 # profit & loss
-# Cumulative P&L
-plot(cumsum(pnl))
-retSys <- merge(delta.y, pnl)[-1,]
-colnames(retSys) <- c("Daily Returns","Half-life Mean Reversion")
-charts.PerformanceSummary(retSys,ylog=F,cex.legend=1.25,
-                          colorset=c("cadetblue","darkolivegreen3"))
 
-
-
-# 3. Mean reversion of a portfolio of more than two instruments -----------
 ## add third pair to portfolio
 USDCAD <- read.csv("USDCAD.csv")
 USDCAD <- xts(USDCAD[,-1], as.Date(USDCAD[,1], format="%d/%m/%Y"), src="csv", dateFormat = 'Date')
@@ -136,12 +116,5 @@ regress.results <- lm(delta.y ~ y.lag, data = df)
 lambda <- summary(regress.results)$coefficients[2]
 half.life <- log(2)/lambda
 print(half.life)
-
-
-
-
-fit <- stl(as.numeric(EWA), t.window=15, s.window="periodic", robust=TRUE)
-plot(fit)
-
 
 

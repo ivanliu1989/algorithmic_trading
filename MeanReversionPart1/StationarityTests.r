@@ -43,3 +43,9 @@ df <- df[-1 ,] #remove first row with NAs
 regress.results <- lm(delta.y ~ y.lag, data = df)
 lambda <- summary(regress.results)$coefficients[2]
 half.life <- -log(2)/lambda
+
+
+
+x = ts(audcad,start = as.Date("2008-01-04"), end = as.Date("2015-07-23"), frequency = 250)
+fit <- stl(x, s.window = "periodic", t.window = 250, robust = T)
+plot(fit)
