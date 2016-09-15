@@ -45,7 +45,8 @@ lambda <- summary(regress.results)$coefficients[2]
 half.life <- -log(2)/lambda
 
 
-
-x = ts(audcad,start = as.Date("2008-01-04"), end = as.Date("2015-07-23"), frequency = 250)
-fit <- stl(x, s.window = "periodic", t.window = 250, robust = T)
+# STL fit
+audcadMon <- to.monthly(audcad)
+x = ts(audcadMon$audcad.Close,start = 1, end = nrow(audcadMon), frequency = 12)
+fit <- stl(x, s.window = "periodic", t.window = 12, robust = T)
 plot(fit)
