@@ -14,3 +14,10 @@
 #     ^^^ Simple Linear Mean Reversion Model ^^^
 # CADF Test
 # Johansen Test
+
+
+# Chapter 3 ---------------------------------------------------------------
+# (Log) Price Spreads & Ratio of prices
+# Bollinger Bands (entryZscore / exitZscore)
+# Kalman Filter
+

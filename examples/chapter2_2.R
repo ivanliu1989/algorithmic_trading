@@ -20,6 +20,8 @@ EWA <-EWA$EWA.Adjusted
 index(EWA) <- as.Date(index(EWA))
 EWC <-EWC$EWC.Adjusted
 index(EWC) <- as.Date(index(EWC))
+EWP <-EWP$EWP.Adjusted
+index(EWP) <- as.Date(index(EWP))
 Pairs <- merge(EWA, EWC)
 colnames(Pairs) <- c("EWA", "EWC")
 # Time-series
@@ -86,53 +88,55 @@ charts.PerformanceSummary(retSys,ylog=F,cex.legend=1.25,
 
 # 3. Mean reversion of a portfolio of more than two instruments -----------
 ## add third pair to portfolio
-USDCAD <- read.csv("USDCAD.csv")
-USDCAD <- xts(USDCAD[,-1], as.Date(USDCAD[,1], format="%d/%m/%Y"), src="csv", dateFormat = 'Date')
-colnames(USDCAD) <- paste(toupper(gsub("\\^", "", "USDCAD"  )), 
-                          c("Open", "High", "Low", "Close", "Volume", "Adjusted"), 
-                          sep = ".")
-closes <- merge.xts( AUDUSD[, 'AUDUSD.Close'], NZDUSD[, 'NZDUSD.Close'], 1/USDCAD[, 'USDCAD.Close'])
-jo_3_t <- ca.jo(cbind(AUDUSD$AUDUSD.Close, NZDUSD$NZDUSD.Close, 1/USDCAD$USDCAD.Close), type="trace", ecdet="none", K=2)
+jo_3_t <- ca.jo(cbind(EWA, EWC, EWP), type="trace", ecdet="none", K=2)
 print(summary(jo_3_t))
-jo_3_e <- ca.jo(cbind(AUDUSD$AUDUSD.Close, NZDUSD$NZDUSD.Close, 1/USDCAD$USDCAD.Close), type="eigen", ecdet="none", K=2) #[, 'USDCAD.Close'])
+jo_3_e <- ca.jo(cbind(EWA, EWC, EWP), type="eigen", ecdet="none", K=2) 
 print(summary(jo_3_e))
 
-spread3 <- closes$AUDUSD.Close - 0.581 * closes$NZDUSD.Close - 1.124 * closes$USDCAD.Close
+## check stationary and hedge ratio
+spread3 <- EWA - 1.1486224 * EWC + 0.1471721 * EWP
 plot.zoo(spread3,  col = 'darkgreen', xlab = 'Date', ylab = 'Spread from johansen eigenvector')
 
+## calculate half life
 y <- spread3
 y.lag <- lag(y, -1)
 delta.y <- diff(y)
-
 df <- cbind(y, y.lag, delta.y)
 df <- df[-1 ,] #remove first row with NAs
-
 regress.results <- lm(delta.y ~ y.lag, data = df)
-
 lambda <- summary(regress.results)$coefficients[2]
 half.life <- log(2)/lambda
 print(half.life)
 
-## subset price data to reproduce Chan's results (Example 5.1 in Algorithmic Trading)
+# backtest
+# setting lookback to the halflife found above
+lookback=round(half.life); 
+#capital in number of shares invested in USDCAD. movingAvg and movingStd are functions from epchan.com/book2
+mktVal=-(y-SMA(y, lookback))/runSD(y, lookback);
+# daily P&L of the strategy 
+pnl=lag(mktVal, 1)*(y-lag(y, 1))/lag(y, 1); 
+pnl[is.na(pnl)]=0 # profit & loss
+# Cumulative P&L
+plot(cumsum(pnl))
+retSys <- merge(delta.y, pnl)[-1,]
+colnames(retSys) <- c("Daily Returns","Half-life Mean Reversion")
+charts.PerformanceSummary(retSys,ylog=F,cex.legend=1.25,
+                          colorset=c("cadetblue","darkolivegreen3"))
 
-A <- AUDUSD["2009-12-18/2012-04-06"]
-N <- NZDUSD["2009-12-18/2012-04-06"]
-C <- USDCAD["2009-12-18/2012-04-06"]
-jo_3a_t <- ca.jo(cbind(A$AUDUSD.Close, 1/C$USDCAD.Close), type="trace", ecdet="none", K=2)
+
+## subset price data to reproduce Chan's results (Example 5.1 in Algorithmic Trading)
+jo_3a_t <- ca.jo(cbind(EWA, EWC), type="trace", ecdet="none", K=2)
 print(summary(jo_3a_t))
 
-spread3a <- A$AUDUSD.Close - 3.944 * C$USDCAD.Close
+spread3a <- EWA - 1.101971 * EWC
 plot.zoo(spread3a,  col = 'deeppink', xlab = 'Date', ylab = 'Spread from johansen eigenvector')
 
 y <- spread3a
 y.lag <- lag(y, -1)
 delta.y <- diff(y)
-
 df <- cbind(y, y.lag, delta.y)
 df <- df[-1 ,] #remove first row with NAs
-
 regress.results <- lm(delta.y ~ y.lag, data = df)
-
 lambda <- summary(regress.results)$coefficients[2]
 half.life <- log(2)/lambda
 print(half.life)
@@ -140,8 +144,6 @@ print(half.life)
 
 
 
-fit <- stl(as.numeric(EWA), t.window=15, s.window="periodic", robust=TRUE)
-plot(fit)
 
 
 
