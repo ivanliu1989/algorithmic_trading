@@ -79,7 +79,7 @@ pnl=lag(mktVal, 1)*(y-lag(y, 1))/lag(y, 1);
 pnl[is.na(pnl)]=0 # profit & loss
 # Cumulative P&L
 plot(cumsum(pnl))
-retSys <- merge(delta.y, pnl)[-1,]
+retSys <- cbind(delta.y, pnl)[-1,]
 colnames(retSys) <- c("Daily Returns","Half-life Mean Reversion")
 charts.PerformanceSummary(retSys,ylog=F,cex.legend=1.25,
                           colorset=c("cadetblue","darkolivegreen3"))
