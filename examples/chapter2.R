@@ -100,7 +100,6 @@ summary(coRes)
 
 
 # 3. Hurst Exponent -------------------------------------------------------
-HurstK(ret)
 ret <- ROC(AUDUSD, n = 1,type = "discrete", na.pad = F)
 hurstKmonthly <- apply.rolling(ret, FUN="HurstK", width = 12)
 
