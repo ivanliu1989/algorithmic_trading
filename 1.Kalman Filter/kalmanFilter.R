@@ -7,6 +7,11 @@ library(fUnitRoots)
 library(FGN)
 library(urca)
 
+zscores <- function(t){
+  tz <- (t-mean(t))/sd(t)
+  return(tz)
+}
+
 fillMissingData <- function(v){
   for(i in 1:length(v)){
     v[i]<-ifelse(is.na(v[i]), v[i-1], v[i])
