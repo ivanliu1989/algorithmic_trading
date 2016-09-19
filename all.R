@@ -17,7 +17,7 @@ long = EWC$EWC.Adjusted
 short = EWA$EWA.Adjusted
 
 # 2. Kalman Filter Hedging ------------------------------------------------
-kalman <- kalmanFilter(long, short, sdnum = 1)
+kalman <- kalmanFilter(long, short, sdnum = 2)
 kalman$numUnits
 
 # 3. JohansenEigenvector --------------------------------------------------
@@ -31,7 +31,6 @@ JohansenEigen$numUnits
 momentums <- tsMomentum(long,short,kalman$hedgeRatio)
 momentums$positions
 
-
 # 5. HurstExpSystem -------------------------------------------------------
 hurstExp = hurstExpSystem(long, short, kalman$hedgeRatio)
 hurstExp$numUnits
@@ -44,5 +43,11 @@ positions = rebalance(long, short, kalman$numUnits, kalman$hedgeRatio)
 positions = rebalance(long, short, JohansenEigen$numUnits, kalman$hedgeRatio)  
 positions = rebalance(long, short, hurstExp$numUnits, kalman$hedgeRatio)  
 
-# 6. Performance measurements ---------------------------------------------
-backTests(long, short, positions, from = Sys.Date()-11365, to = Sys.Date())
+# 7. Performance measurements ---------------------------------------------
+backTests(long, short, positions, from = Sys.Date()-365, to = Sys.Date())
+backTests(long, short, positions, from = Sys.Date()-30065, to = Sys.Date())
+
+# 8. Dashboards -----------------------------------------------------------
+
+
+

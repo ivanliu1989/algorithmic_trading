@@ -219,3 +219,72 @@ backTests <- function(long, short, positions, from, to){
   charts.PerformanceSummary(retSys,ylog=T,cex.legend=1.25,
                             colorset=c("cadetblue","darkolivegreen3", "red"))
 }
+
+
+basicTests <- function(long, short, lookback=20, sdnum = 2){
+  Pairs <- merge(long, short)
+  colnames(Pairs) <- c("long", "short")
+  
+  # 1. Augmented Dickey-Fuller Test Unit Root
+  fit <- lm(long~short)
+  hedgeRatio <- coef(fit)[2]
+  resi <- long-hedgeRatio * short
+  adf.test <- summary(ur.df(resi, type = "drift", lags = 1))
+  
+  # 2. Total least square regression
+  r <- princomp(~ long + short)
+  beta_TLS <- r$loadings[1,1] / r$loadings[2,1] # I think we also need a non-zero intercept in both cases
+  resid_TLS <- long - beta_TLS * short
+  colnames(resid_TLS) <- "residual"
+  adf.test.TLS <- summary(ur.df(resid_TLS, type = "drift", lags = 1))
+  
+  
+  for(i in 1:1000){
+    cat(paste0("\nIteration-", i, " | half.life: ", lookback))
+    z = lookback
+    # 3. Rolling hedge ratio
+    hedgeRatio = rep(1, length(long))
+    for(t in c(lookback:length(hedgeRatio))){
+      regression_result <- lm(long[(t-lookback+1):t]~short[(t-lookback+1):t]+1)
+      hedgeRatio[t] <- coef(regression_result)[2]
+    }
+    
+    # 4. Half-life
+    y <- long - hedgeRatio * short
+    y.lag <- lag(y, 1)
+    delta.y <- diff(y)
+    df <- cbind(y, y.lag, delta.y)
+    df <- df[-1 ,] #remove first row with NAs
+    regress.results <- lm(delta.y ~ y.lag, data = df)
+    lambda <- summary(regress.results)$coefficients[2]
+    half.life <- -log(2)/lambda
+    lookback=round(half.life)
+    
+    if(round(lookback - z)==0) break()
+  }
+  
+  # 5. JO test
+  jo.test <- summary(ca.jo(cbind(long, short), type="trace", ecdet="none", K=2)) #test trace statistics
+  
+  # 6. Bollinger band strategy
+  yport <- long - hedgeRatio * short
+  zScore <- zscores(yport)
+  bollingerUp <- sdnum * runSD(yport, lookback)
+  bollingerLow <- -sdnum * runSD(yport, lookback)
+  bollingerUpZ <- sdnum * runSD(zScore, lookback)
+  bollingerLowZ <- -sdnum * runSD(zScore, lookback)
+  
+  res <- list(
+    adf.test = adf.test,
+    adf.test.TLS = adf.test.TLS,
+    jo.test = jo.test,
+    hedgeRatio = hedgeRatio,
+    half.life = half.life,
+    yport = yport,
+    zScore = zScore,
+    bollingerUp = bollingerUp,
+    bollingerLow = bollingerLow,
+    bollingerUpZ = bollingerUpZ,
+    bollingerLowZ = bollingerLowZ
+  )
+}
