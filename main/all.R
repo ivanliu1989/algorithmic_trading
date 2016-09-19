@@ -7,14 +7,19 @@ library(PerformanceAnalytics)
 library(fUnitRoots)
 library(FGN)
 library(urca)
-source("functions.R")
+source("main/functions.R")
 
 
-# 1. Load data and calculate correlations ---------------------------------
+# 0. Load data and calculate correlations ---------------------------------
 getSymbols("EWA")
 getSymbols("EWC")
 long = EWC$EWC.Adjusted
 short = EWA$EWA.Adjusted
+
+# 1. Basic test -----------------------------------------------------------
+basicTest <- basicTests(long, short)
+hedgeRatio <- zoo(basicTest$hedgeRatio, index(long))
+half.life <- round(basicTest$half.life)
 
 # 2. Kalman Filter Hedging ------------------------------------------------
 kalman <- kalmanFilter(long, short, sdnum = 2)
@@ -48,6 +53,5 @@ backTests(long, short, positions, from = Sys.Date()-365, to = Sys.Date())
 backTests(long, short, positions, from = Sys.Date()-30065, to = Sys.Date())
 
 # 8. Dashboards -----------------------------------------------------------
-
-
+dashboardOne(long, short, hedgeRatio, half.life, entryExit = kalman$numUnits)
 

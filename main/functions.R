@@ -202,7 +202,7 @@ backTests <- function(long, short, positions, from, to){
   # return is P%L divided by gross market value of portfolio
   ret = pnl/rowSums(abs(lag(positions, 1)), na.rm = T)
   ret[is.na(ret)]=0
-  ret2 <- zoo(ret,index(y))
+  ret2 <- zoo(ret,index(y2))
   ret2 <- ret2[index(ret2) >= as.Date(from) & index(ret2) <= as.Date(to)]
   APR <- prod(1+ret2)**(252/length(ret2)) - 1
   Sharpe <- sqrt(252)*mean(ret2)/sd(ret2)
@@ -214,14 +214,15 @@ backTests <- function(long, short, positions, from, to){
   xret[is.na(xret)] = 0
   retSys <- cbind(yret, xret, ret)[-1,]
   colnames(retSys) <- c("short Daily Returns","long Daily Returns","Strategy Based")
-  retSys <- zoo(retSys,index(y)[-1])
+  retSys <- zoo(retSys,index(y2)[-1])
   retSys <- retSys[index(retSys) >= as.Date(from) & index(retSys) <= as.Date(to),]
   charts.PerformanceSummary(retSys,ylog=T,cex.legend=1.25,
                             colorset=c("cadetblue","darkolivegreen3", "red"))
 }
 
 
-basicTests <- function(long, short, lookback=20, sdnum = 2){
+basicTests <- function(long, short, trainlen = 250, lookback=20, sdnum = 2){
+  n = length(long)
   Pairs <- merge(long, short)
   colnames(Pairs) <- c("long", "short")
   
@@ -238,29 +239,22 @@ basicTests <- function(long, short, lookback=20, sdnum = 2){
   colnames(resid_TLS) <- "residual"
   adf.test.TLS <- summary(ur.df(resid_TLS, type = "drift", lags = 1))
   
+  # 3. Half-life
+  y <- long[(n-trainlen):n] - hedgeRatio * short[(n-trainlen):n]
+  y.lag <- lag(y, 1)
+  delta.y <- diff(y)
+  df <- cbind(y, y.lag, delta.y)
+  df <- df[-1 ,] #remove first row with NAs
+  regress.results <- lm(delta.y ~ y.lag, data = df)
+  lambda <- summary(regress.results)$coefficients[2]
+  half.life <- -log(2)/lambda
+  lookback=round(half.life)
   
-  for(i in 1:1000){
-    cat(paste0("\nIteration-", i, " | half.life: ", lookback))
-    z = lookback
-    # 3. Rolling hedge ratio
-    hedgeRatio = rep(1, length(long))
-    for(t in c(lookback:length(hedgeRatio))){
-      regression_result <- lm(long[(t-lookback+1):t]~short[(t-lookback+1):t]+1)
-      hedgeRatio[t] <- coef(regression_result)[2]
-    }
-    
-    # 4. Half-life
-    y <- long - hedgeRatio * short
-    y.lag <- lag(y, 1)
-    delta.y <- diff(y)
-    df <- cbind(y, y.lag, delta.y)
-    df <- df[-1 ,] #remove first row with NAs
-    regress.results <- lm(delta.y ~ y.lag, data = df)
-    lambda <- summary(regress.results)$coefficients[2]
-    half.life <- -log(2)/lambda
-    lookback=round(half.life)
-    
-    if(round(lookback - z)==0) break()
+  # 4. Rolling hedge ratio
+  hedgeRatio = rep(1, length(long))
+  for(t in c(lookback:length(hedgeRatio))){
+    regression_result <- lm(long[(t-lookback+1):t]~short[(t-lookback+1):t]+1)
+    hedgeRatio[t] <- coef(regression_result)[2]
   }
   
   # 5. JO test
@@ -287,4 +281,42 @@ basicTests <- function(long, short, lookback=20, sdnum = 2){
     bollingerUpZ = bollingerUpZ,
     bollingerLowZ = bollingerLowZ
   )
+}
+
+
+dashboardOne <- function(long, short, hedgeRatio, half.life, entryExit){
+  par(mfcol=c(4,1))
+  entryExit <- entryExit[-c(1:(half.life+1))]
+  dates <- index(long)[-c(1:(half.life+1))]
+  entryExitPoints <- dates[entryExit == 1 | entryExit == -1]
+  entryExitColor <- ifelse(entryExitPoints %in% dates[entryExit == 1], "green", "orange")
+  Pairs <- merge(long,short)
+  colnames(Pairs) <- c("long", "short")
+  yport <- long - hedgeRatio * short
+  # Series
+  chart.TimeSeries(Pairs[-c(1:(half.life+1)),], ylog=FALSE,cex.legend=1.25,main = "Raw Series",
+                   legend.loc = "topleft",ylab = NA,
+                   colorset=c("cadetblue","darkolivegreen3"))
+  
+  # Hedge ratio
+  chart.TimeSeries(hedgeRatio[-c(1:(half.life+1)),], ylog=FALSE,cex.legend=1.25,main = "Rolling Hedge Ratio",
+                   ylab = NA,colorset=c("darkblue"))
+  
+  # Series / hedge ratio
+  PairsAjs <- cbind(Pairs, yport)
+  PairsAjs[,2] <- -PairsAjs[,2] * hedgeRatio
+  PairsAjs <- PairsAjs[-c(1:(half.life+1)),]
+  colnames(PairsAjs) <- c("long", "short", "spread")
+  chart.TimeSeries(PairsAjs, ylog=FALSE, cex.legend=1.25,main = "Long, Short & Spread",
+                   legend.loc = "topleft",ylab = NA,
+                   event.lines = entryExitPoints,event.color = entryExitColor,
+                   colorset=c("cadetblue","darkolivegreen3","red"))
+  
+  # Spread
+  PairsAjs2 <- PairsAjs
+  PairsAjs2[,2] <- -PairsAjs2[,2]
+  PairsAjs2 = ROC(PairsAjs2, n = 1, type = "discrete")[-1,]
+  chart.CumReturns(PairsAjs2, ylog=FALSE, cex.legend=1.25,main = "CumReturns of Long, Short & Spread",
+                   legend.loc = "topleft",ylab = NA,
+                   colorset=c("cadetblue","darkolivegreen3","red"))
 }
