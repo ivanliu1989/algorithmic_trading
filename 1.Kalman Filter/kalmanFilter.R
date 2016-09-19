@@ -58,7 +58,7 @@ kalmanFilter <- function(long, short){
     }
     
     kalman$yhat[t]=x[t,]%*%kalman$beta[,t] # measurement prediction. Equation 3.9
-
+    
     kalman$Q[t] = x[t, ]%*%kalman$R%*%t(x[t,])+kalman$Ve # measurement variance prediction. Equation 3.10
     
     kalman$e[t]=y[t]-kalman$yhat[t] # measurement prediction error
