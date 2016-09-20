@@ -13,8 +13,8 @@ source("main/functions.R")
 # 0. Load data and calculate correlations ---------------------------------
 getSymbols("EWA")
 getSymbols("EWC")
-long = EWC$EWC.Adjusted # high
-short = EWA$EWA.Adjusted # low
+short = EWC$EWC.Adjusted # high
+long = EWA$EWA.Adjusted # low
 
 
 # 1. Check Correlations ---------------------------------------------------
@@ -77,10 +77,12 @@ chart.TimeSeries(cbind(long-short, S1, S2, S3))
 
 
 # 5. Strategy -------------------------------------------------------------
-longsEntry= long-short < S3 
-longsExit= long-short > S2 | abs(long-short) < 0.1
-shortsEntry= long-short > S2
-shortsExit= long-short < S3 | abs(long-short) < 0.1
+dif <- lag(long-short)
+dif[1] <- 0
+longsEntry= dif < S3 
+longsExit= dif > S2 | abs(long-short) < 0.1
+shortsEntry= dif > S2
+shortsExit= dif < S3 | abs(long-short) < 0.1
 
 numUnitesLong = rep(NA, length(long))
 numUnitesShort = rep(NA, length(long))
@@ -90,12 +92,12 @@ numUnitesLong[longsExit] = 0
 numUnitesLong <- fillMissingData(numUnitesLong)
 
 numUnitesShort[1] = 0
-numUnitesShort[shortsEntry] = -1
+numUnitesShort[shortsEntry] = 1
 numUnitesShort[shortsExit] = 0
 numUnitesShort <- fillMissingData(numUnitesShort)
 
 numUnits = numUnitesLong + numUnitesShort
 
-positions = merge(numUnits*long, -numUnits*short)
+positions = merge(numUnitesLong*long, numUnitesShort*short)
 colnames(positions) = c("long", "short")
 backTests(long, short, positions, Sys.Date()-100000, Sys.Date())
