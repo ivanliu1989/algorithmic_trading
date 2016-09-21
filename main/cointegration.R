@@ -89,6 +89,8 @@ numUnitesShort[shortsEntry] = 1
 numUnitesShort[shortsExit] = 0
 numUnitesShort <- fillMissingData(numUnitesShort)
 
+capital = 100000
+
 positions = merge(numUnitesLong*dt$long, dt$hedgeRatio * numUnitesShort*dt$short)
 colnames(positions) = c("long", "short")
 backTests(dt$long, dt$short, positions, Sys.Date()-100000, Sys.Date())
