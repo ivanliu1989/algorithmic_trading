@@ -13,8 +13,14 @@ source("main/functions.R")
 # 0. Load data and calculate correlations ---------------------------------
 getSymbols("EWA")
 getSymbols("EWC")
-short = EWC$EWC.Adjusted # high
-long = EWA$EWA.Adjusted # low
+long = EWC$EWC.Adjusted # high
+short = EWA$EWA.Adjusted # low
+
+getMetals("XAU")
+getMetals("XAG")
+short = XAUUSD/100 #gold
+long = XAGUSD #silver
+
 
 
 # 1. Check Correlations ---------------------------------------------------
@@ -29,63 +35,50 @@ summary(ur.df(diff(short)[-1], type = "drift", lags = 1))
 
 # 3. Cointegration --------------------------------------------------------
 summary(ca.jo(cbind(long, short), type="trace", ecdet="none", K=2))
-johansen(cbind(long, short), L=1) 
-"johansen"<- function(x, L = 2){ 
-  #Johansen Test of cointegration for multivariate time series x 
-  #Returns vector of eigenvalues after that you are on your own. 
-  #This is a modified version for R, in which rts is substituted by ts. 
-  x <- ts(x) 
-  n <- nrow(x) 
-  p <- ncol(x) 
-  Ly <- lag(x[, 1], -1) 
-  D <- diff(x[, 1]) 
-  for(i in 1:p) { 
-    if(i > 1) { 
-      D <- ts.intersect(D, diff(x[, i])) 
-      Ly <- ts.intersect(Ly, lag(x[, i], -1)) 
-    } 
-    if(L > 0) 
-      for(j in 1:L) 
-        D <- ts.intersect(D, lag(diff(x[, i]),  - j)) 
-  } 
-  iys <- 1 + (L + 1) * (0:(p - 1)) 
-  Y <- D[, iys] 
-  X <- D[,  - iys] 
-  Ly <- ts.intersect(Ly, D)[, 1:p] 
-  ZD <- lm(Y ~ X)$resid 
-  ZL <- lm(Ly ~ X)$resid 
-  df <- nrow(X) - ncol(X) - 1 
-  S00 <- crossprod(ZD)/df 
-  S11 <- crossprod(ZL)/df 
-  S01 <- crossprod(ZD, ZL)/df 
-  M <- solve(S11) %*% t(S01) %*% solve(S00) %*% S01 
-  eigen(M)$values 
-} 
 
-
+basicTest <- basicTests(long, short)
+hedgeRatio <- zoo(basicTest$hedgeRatio, index(long))
+half.life <- round(basicTest$half.life)
 
 # 4. Price Diff -----------------------------------------------------------
-mean=mean(long-short)
-std=sd(long-short)
-S1 = mean
-S2 = mean + std
-S3 = mean - std
-chart.TimeSeries(cbind(long-short, S1, S2, S3))
+OLShedge <- function(long, short, window){
+  pair = merge(long, short)
+  colnames(pair) <- c("long","short")
+  
+  dolm <- function(x) coef(lm(long ~ ., data = as.data.frame(x)))
+  hedgeRatio <- rollapplyr(pair, window, dolm, by.column = FALSE)
+  colnames(hedgeRatio) <- c("intercept", "hedgeRatio")
+  
+  dt <- merge(pair, hedgeRatio)
+  dt$pred.long <- dt$intercept + dt$hedgeRatio * dt$short
+  
+  dt$spread <- dt$long-dt$hedgeRatio*dt$short
+  
+  dt$mean = rollapplyr(dt$spread, window, mean)
+  dt$std = rollapplyr(dt$spread, window, sd)
+  dt$BBhigh = dt$mean + dt$std
+  dt$BBlow = dt$mean - dt$std
+  return(dt[-c(1:(2*window)),])
+}
+
+dt <- OLShedge(long, short, half.life)
+
+# chart.TimeSeries(dt[,c("spread", "mean", "BBhigh", "BBlow")])
 # 1.spreadprice大于7.814597时，卖空差价，即卖空long，买入short。
 # 2.spreadprice小于4.693253时，买入差价，即买入long，卖空short。
 # 3.spreadprice靠近零时，平仓
 
 
 # 5. Strategy -------------------------------------------------------------
-dif <- lag(long-short)
-dif[1] <- 0
-longsEntry= dif < S3 
-longsExit= dif > S2 | abs(long-short) < 0.1
-shortsEntry= dif > S2
-shortsExit= dif < S3 | abs(long-short) < 0.1
+dif <- lag(dt,1)
+dif[1,] <- 0
+longsEntry= dif$spread < dif$BBlow 
+longsExit= dif$spread > dif$BBhigh #| dif < 0.1
+shortsEntry= dif$spread > dif$BBhigh
+shortsExit= dif$spread < dif$BBlow #| dif < 0.1
 
-numUnitesLong = rep(NA, length(long))
-numUnitesShort = rep(NA, length(long))
+numUnitesLong = rep(NA, length(dt$long))
+numUnitesShort = rep(NA, length(dt$long))
 numUnitesLong[1] = 0
 numUnitesLong[longsEntry] = 1
 numUnitesLong[longsExit] = 0
@@ -96,8 +89,6 @@ numUnitesShort[shortsEntry] = 1
 numUnitesShort[shortsExit] = 0
 numUnitesShort <- fillMissingData(numUnitesShort)
 
-numUnits = numUnitesLong + numUnitesShort
-
-positions = merge(numUnitesLong*long, numUnitesShort*short)
+positions = merge(numUnitesLong*dt$long, dt$hedgeRatio * numUnitesShort*dt$short)
 colnames(positions) = c("long", "short")
-backTests(long, short, positions, Sys.Date()-100000, Sys.Date())
+backTests(dt$long, dt$short, positions, Sys.Date()-100000, Sys.Date())
