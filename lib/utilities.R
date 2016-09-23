@@ -1,26 +1,114 @@
 
 # 1. initialize -----------------------------------------------------------
-initialize <- function(){
-  
+initialize <- function(long, short, capital, window, lookback){
+  lookback <- min(lookback, length(long))
+  context <- list(
+    long = long[(length(long)-lookback+1):length(long)],
+    short = short[(length(short)-lookback+1):length(short)],
+    pair = merge(long[(length(long)-lookback+1):length(long)], 
+                 short[(length(short)-lookback+1):length(short)]),
+    capital = capital,
+    window = window,
+    lookback = lookback
+  )
+  return(context)
 }
+# context = initialize(long, short, 100000, 20, 1250)
 
 # 2. handle data ----------------------------------------------------------
-handle_data <- function(){
+handle_data <- function(context){
+  # 1. Check Correlations ---------------------------------------------------
+  chart.Correlation(context$pair)
+  cat("\n1. Check pairs correlations: ")
+  print(cor(context$pair))
   
+  # 2. Stationary -----------------------------------------------------------
+  # ADF
+  cat("\n2. Stationary test (ADF)")
+  adf.long <- summary(ur.df(context$long, type = "drift", lags = 1))
+  cat(paste0("\n",names(context$long), ": ", adf.long@testreg$coefficients["z.lag.1","t value"]))
+  cat("\n");print(adf.long@cval)
+  
+  adf.short <- summary(ur.df(context$short, type = "drift", lags = 1))
+  cat(paste0("\n",names(context$short), ": ", adf.short@testreg$coefficients["z.lag.1","t value"]))
+  cat("\n"); print(adf.short@cval)
+  
+  adf.long.diff <- summary(ur.df(diff(context$long)[-1], type = "drift", lags = 1))
+  cat(paste0("\n",names(context$long), " diff: ", adf.long.diff@testreg$coefficients["z.lag.1","t value"]))
+  cat("\n"); print(adf.long.diff@cval)
+  
+  adf.short.diff <- summary(ur.df(diff(context$short)[-1], type = "drift", lags = 1))
+  cat(paste0("\n",names(context$short), " diff: ", adf.short.diff@testreg$coefficients["z.lag.1","t value"]))
+  cat("\n");print(adf.short.diff@cval)
+  
+  # 3. Cointegration --------------------------------------------------------
+  cat("\n3. Cointegration test (Johansen-Procedure)")
+  johansen.test <- summary(ca.jo(context$pair, type="trace", ecdet="none", K=2))
+  print(cbind(johansen.test@teststat, johansen.test@cval))
+  
+  basicTest <- basicTests(context$long, context$short, context$lookback, context$window, 1.5)
+  hedgeRatio <- zoo(basicTest$hedgeRatio, index(long))
+  half.life <- round(basicTest$half.life)
+  
+  res <- list(
+    basicTest = basicTest,
+    hedgeRatio = hedgeRatio,
+    half.life = half.life
+  )
+  return(res)
 }
 
+# init.test <- handle_data(context)
+
 # 3. before trading start -------------------------------------------------
-before_trading_start <- function(){
+before_trading_start <- function(pair, init.test){
   
+    hedgeRatio <- coef(lm(pair[,1]~pair[,2]))
+    names(hedgeRatio) <- c("intercept", "hedgeRatio")
+    
+    dt <- pair
+    dt$intercept <- hedgeRatio[1]
+    dt$hedgeRatio <- hedgeRatio[2]
+    
+    dt$pred.long <- dt$intercept + dt$hedgeRatio * dt$short
+    
+    dt$spread <- dt$long-dt$hedgeRatio*dt$short
+    
+    dt$mean = mean(dt$spread)
+    dt$std = sd(dt$spread)
+    dt$BBhigh = dt$mean + dt$std
+    dt$BBlow = dt$mean - dt$std
+    
+    universe <- dt[nrow(dt),]
+    return(universe)
 }
 
 # 4. rebalance ------------------------------------------------------------
-rebalance_portfolio <- function(){
+rebalance_portfolio <- function(universe, positions, capital, rounds){
+  
+  
+  longsEntry= universe$spread < universe$BBlow 
+  longsExit= universe$spread > universe$BBhigh #| dif < 0.1
+  shortsEntry= universe$spread > universe$BBhigh
+  shortsExit= universe$spread < universe$BBlow #| dif < 0.1
+  if(longsExit) reverse <- TRUE
+  numUnits = cbind(longsEntry, longsExit, shortsEntry, shortsExit, reverse)
   
 }
 
 # 5. backtesting ----------------------------------------------------------
-backtesting <- function(){
+backtesting <- function(context){
+  
+  trade.summary <- context$pair[-c(1:context$window),]
+  trade.summary$longsEntry = NA
+  trade.summary$longsExit = NA
+  trade.summary$shortsEntry = NA
+  trade.summary$shortsExit = NA
+  trade.summary$reverse = NA
+  trade.summary$longsPositions = NA
+  trade.summary$shortsPositions = NA
+  trade.summary$totPositions = NA
+  trade.summary$returns = NA
   
 }
 

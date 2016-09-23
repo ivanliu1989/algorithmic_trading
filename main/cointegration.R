@@ -11,15 +11,15 @@ source("main/functions.R")
 
 
 # 0. Load data and calculate correlations ---------------------------------
-getSymbols("EWA")
-getSymbols("EWC")
-long = EWC$EWC.Adjusted # high
-short = EWA$EWA.Adjusted # low
+getFX("AUD/USD")
+getFX("CAD/USD")
+long = AUDUSD # high
+short = CADUSD # low
 
-getMetals("XAU")
-getMetals("XAG")
-short = XAUUSD/100 #gold
-long = XAGUSD #silver
+# getMetals("XAU")
+# getMetals("XAG")
+# short = XAUUSD/100 #gold
+# long = XAGUSD #silver
 
 
 
@@ -63,7 +63,7 @@ OLShedge <- function(long, short, window){
 
 dt <- OLShedge(long, short, half.life)
 
-# chart.TimeSeries(dt[,c("spread", "mean", "BBhigh", "BBlow")])
+chart.TimeSeries(dt[,c("spread", "mean", "BBhigh", "BBlow")], legend.loc = "topleft")
 # 1.spreadprice大于7.814597时，卖空差价，即卖空long，买入short。
 # 2.spreadprice小于4.693253时，买入差价，即买入long，卖空short。
 # 3.spreadprice靠近零时，平仓
@@ -94,3 +94,5 @@ capital = 100000
 positions = merge(numUnitesLong*dt$long, dt$hedgeRatio * numUnitesShort*dt$short)
 colnames(positions) = c("long", "short")
 backTests(dt$long, dt$short, positions, Sys.Date()-100000, Sys.Date())
+
+# dashboardOne(long, short, hedgeRatio, half.life, positions)
