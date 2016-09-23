@@ -137,6 +137,7 @@ rebalance_portfolio <- function(strategy, trade.summary, i){
 # 5. backtesting ----------------------------------------------------------
 backtesting <- function(context, init.test){
   trade.summary <- context$pair
+  plotnames = colnames(trade.summary)
   colnames(trade.summary) <- c("long","short")
   trade.summary$longsEntry = NA
   trade.summary$longsExit = NA
@@ -157,26 +158,49 @@ backtesting <- function(context, init.test){
   }
   
   trade.summary$strategy = trade.summary$long * trade.summary$longsPositions + trade.summary$short * trade.summary$shortsPositions
-  perf <- trade.summary[-c(1:init.test$half.life), c("strategy", "long", "short")]
-  perf$strategy = ROC(perf$strategy)
-  perf$long = ROC(perf$long)
-  perf$short = ROC(perf$short)
-  perf = perf[-1,]
-  perf[is.infinite(perf[,1]),1] <- 0
-  perf[is.infinite(perf[,2]),2] <- 0
-  perf[is.infinite(perf[,3]),3] <- 0
-  perf[is.na(perf[,1]),1] <- 0
-  perf[is.na(perf[,2]),2] <- 0
-  perf[is.na(perf[,3]),3] <- 0
-  charts.PerformanceSummary(perf, ylog=T, cex.legend=1.25,event.labels = T,
+  perf <- trade.summary[trade.summary$strategy>0, c("strategy", "long", "short")]
+  perf.roc = perf
+  perf.roc$strategy = ROC(perf.roc$strategy)
+  perf.roc$long = ROC(perf.roc$long)
+  perf.roc$short = ROC(perf.roc$short)
+  perf.roc = perf.roc[-1,]
+  perf.roc[is.infinite(perf.roc[,1]),1] <- 0
+  perf.roc[is.infinite(perf.roc[,2]),2] <- 0
+  perf.roc[is.infinite(perf.roc[,3]),3] <- 0
+  perf.roc[is.na(perf.roc[,1]),1] <- 0
+  perf.roc[is.na(perf.roc[,2]),2] <- 0
+  perf.roc[is.na(perf.roc[,3]),3] <- 0
+  charts.PerformanceSummary(perf.roc, ylog=T, cex.legend=1.25,event.labels = T,
                             colorset=c("red","cadetblue","darkolivegreen3"))
   
+  
   events <- unique(index(trade.summary$reverse)[trade.summary$reverse==1])[-1]
-  chart.TimeSeries(perf, event.lines = events, colorset=c("red","cadetblue","darkolivegreen3"))
+  perf$diff = perf$long - perf$short
+  perf$strategy = zscores(perf$strategy)
+  perf$long = zscores(perf$long)
+  perf$short = zscores(perf$short)
+  perf$diff = zscores(perf$diff)
+  names(perf) <- c("Strategy based", plotnames, "Difference")
+  par(mfcol = c(2,1))
+  chart.TimeSeries(perf[,-4], event.lines = events, legend.loc = "topleft", event.color = "orange",
+                   colorset=c("red","cadetblue","darkolivegreen3"),
+                   main = "Normalized Price Series")
+  chart.Bar(perf$Difference, colorset = "orange", main = "Difference between pairs")
+  
+  AprSharpe <- data.frame(
+    Strategy = c(prod(1+perf.roc$strategy)**(252/length(perf.roc$strategy)) - 1, sqrt(252)*mean(perf.roc$strategy)/sd(perf.roc$strategy)),
+    Long = c(prod(1+perf.roc$long)**(252/length(perf.roc$long)) - 1, sqrt(252)*mean(perf.roc$long)/sd(perf.roc$long)),
+    Short = c(prod(1+perf.roc$short)**(252/length(perf.roc$short)) - 1, sqrt(252)*mean(perf.roc$short)/sd(perf.roc$short))
+  )
+  row.names(AprSharpe) <- c("APR", "Sharpe")
+  colnames(AprSharpe) <- c("Strategy", plotnames)
+  cat("\n")
+  print(AprSharpe)  
   
   return(list(
     trade.summary = trade.summary,
-    perf = perf
+    perf = perf,
+    AprSharpe = AprSharpe
   ))
 }
 

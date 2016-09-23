@@ -10,33 +10,31 @@ getFX("NZD/USD")
 
 
 # 1. CAD vs AUD -----------------------------------------------------------
-long = CADUSD # high
-short = AUDUSD # low
+long = CADUSD
+short = AUDUSD
+
+context = initialize(long, short, capital = 1000000, window = 20, lookback = 500)
+init.test <- handle_data(context)
+
+res = backtesting(context, init.test)
+
+
+# 2. NZD vs AUD -----------------------------------------------------------
+long = NZDUSD 
+short = AUDUSD 
 
 context = initialize(long, short, 1000000, 20, 500)
 init.test <- handle_data(context)
 
 res = backtesting(context, init.test)
-# entryExit <- ifelse(res$trade.summary$longsEntry == 1, 1, ifelse(res$trade.summary$shortsEntry == 1, -1, 0))
-# dashboardSummary(long, short, init.test$hedgeRatio, 249, entryExit)
-
-
-# 2. NZD vs AUD -----------------------------------------------------------
-long = NZDUSD # high
-short = AUDUSD # low
-
-context = initialize(long, short, 1000000, 20, 500)
-init.test <- handle_data(context)
-
-backtesting(context, init.test)
 
 
 
 # 3. CAD vs NZD -----------------------------------------------------------
-long = CADUSD # high
-short = NZDUSD # low
+long = CADUSD 
+short = NZDUSD 
 
 context = initialize(long, short, 1000000, 20, 500)
 init.test <- handle_data(context)
 
-backtesting(context, init.test)
+res = backtesting(context, init.test)
